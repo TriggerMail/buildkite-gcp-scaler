@@ -2,6 +2,7 @@ package scaler
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/TriggerMail/buildkite-gcp-scaler/pkg/buildkite"
@@ -17,8 +18,8 @@ type Config struct {
 	InstanceGroupTemplate string
 	BuildkiteQueue        string
 	BuildkiteToken        string
-
-	PollInterval *time.Duration
+	Concurrency           int
+	PollInterval          *time.Duration
 }
 
 type Scaler interface {
@@ -94,11 +95,28 @@ func (s *scaler) run(ctx context.Context) error {
 
 	required := totalInstanceRequirement - liveInstanceCount
 
+	sem := make(chan int, s.cfg.Concurrency)
+	errChan := make(chan error, 1)
+	wg := new(sync.WaitGroup)
+	wg.Add(int(required))
+
 	for i := int64(0); i < required; i++ {
-		err := s.gce.LaunchInstanceForGroup(ctx, s.cfg.GCPProject, s.cfg.GCPZone, s.cfg.InstanceGroupName, s.cfg.InstanceGroupTemplate)
-		if err != nil {
-			return err
-		}
+		go func() {
+			sem <- 1
+			defer wg.Done()
+			if err := s.gce.LaunchInstanceForGroup(ctx, s.cfg.GCPProject, s.cfg.GCPZone, s.cfg.InstanceGroupName, s.cfg.InstanceGroupTemplate); err != nil {
+				select {
+				case errChan <- err:
+					s.logger.Error("Failed to launch instance", "error", err)
+				default:
+
+				}
+			}
+
+			<-sem
+		}()
 	}
-	return nil
+	wg.Wait()
+	close(errChan)
+	return <-errChan
 }

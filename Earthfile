@@ -38,4 +38,4 @@ docker:
     ARG EARTHLY_GIT_SHORT_HASH
     COPY +build/buildkite-gcp-autoscaler /buildkite-gcp-autoscaler
     ENTRYPOINT ["/buildkite-gcp-autoscaler"]
-    SAVE IMAGE --push us.gcr.io/bluecore-ops/apps/buildkite-gcp-autoscaler:${EARTHLY_GIT_SHORT_HASH}
+    SAVE IMAGE --push us-central1-docker.pkg.dev/bluecore-ops/ops/buildkite-gcp-autoscaler:${EARTHLY_GIT_SHORT_HASH}

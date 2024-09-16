@@ -2,7 +2,6 @@ VERSION 0.7
 FROM us.gcr.io/bluecore-ops/dockerfiles/golang:lint-1.19
 WORKDIR /app
 ENV GOPRIVATE=github.com/TriggerMail
-ARG ARTIFACT_REGISTRY="us-central1-docker.pkg.dev/bluecore-ops/ops/buildkite-gcp-autoscaler"
 
 ci:
   BUILD +tests
@@ -39,4 +38,4 @@ docker:
     ARG EARTHLY_GIT_SHORT_HASH
     COPY +build/buildkite-gcp-autoscaler /buildkite-gcp-autoscaler
     ENTRYPOINT ["/buildkite-gcp-autoscaler"]
-    SAVE IMAGE --push ${ARTIFACT_REGISTRY}:${EARTHLY_GIT_SHORT_HASH}
+    SAVE IMAGE --push us-central1-docker.pkg.dev/bluecore-ops/ops/buildkite-gcp-autoscaler:${EARTHLY_GIT_SHORT_HASH}

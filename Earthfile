@@ -2,7 +2,7 @@ VERSION 0.7
 FROM us.gcr.io/bluecore-ops/dockerfiles/golang:lint-1.19
 WORKDIR /app
 ENV GOPRIVATE=github.com/TriggerMail
-ENV ARTIFACT_REGISTRY="us-central1-docker.pkg.dev/bluecore-ops/ops/buildkite-gcp-autoscaler"
+ARG ARTIFACT_REGISTRY="us-central1-docker.pkg.dev/bluecore-ops/ops/buildkite-gcp-autoscaler"
 
 ci:
   BUILD +tests

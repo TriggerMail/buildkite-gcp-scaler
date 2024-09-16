@@ -6,7 +6,7 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "daily"
-      time: "12:00"
+      time: "08:00"
     reviewers:
       - TriggerMail/infra
     open-pull-requests-limit: 10

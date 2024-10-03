@@ -1,10 +1,15 @@
-env:
-  BUILDKITE_PLUGIN_GCR_JSON_KEY: ${BUILDKITE_PLUGIN_GCR_JSON_KEY}
-  HOMEBREW_GITHUB_API_TOKEN: ${HOMEBREW_GITHUB_API_TOKEN}
 name: buildkite-gcp-scaler
 description: buildkite-gcp-scaler build pipeline
 steps:
   - label: ":golang:"
     key: "build"
     command: ".buildkite/steps/build"
-
+    agents:
+      queue: kubernetes # Switch to Kubernetes queue
+    plugins:
+      # - docker-login#v2.1.0: *docker_login_config
+    - kubernetes:
+        podSpecPatch:
+          containers:
+          - image: us-central1-docker.pkg.dev/bluecore-ops/ops/agent-stack-k8s:v1
+            name: container-0

@@ -18,8 +18,8 @@ ssh:agent() {
     ssh-add
 }
 
-ssh:agent
-docker:login
+# ssh:agent
+# docker:login
 
 EARTHLY_OS="linux"
 export EARTHLY_CONVERSION_PARALLELISM="5"

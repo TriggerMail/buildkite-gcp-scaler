@@ -3,7 +3,7 @@ description: buildkite-gcp-scaler build pipeline
 steps:
   - label: ":golang:"
     key: "build"
-    command: "bash .buildkite/steps/build"
+    command: "cd .buildkite/ && ls"
     agents:
       queue: kubernetes # Switch to Kubernetes queue
     plugins:

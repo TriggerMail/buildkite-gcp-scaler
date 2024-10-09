@@ -18,7 +18,7 @@ ssh:agent() {
     ssh-add
 }
 
-ssh:agent
+# ssh:agent
 docker:login
 
 EARTHLY_OS="linux"

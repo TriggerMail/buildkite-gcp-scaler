@@ -25,6 +25,7 @@ EARTHLY_OS="linux"
 export EARTHLY_CONVERSION_PARALLELISM="5"
 export EARTHLY_SSH_AUTH_SOCK="/root/.ssh/ssh-agent.sock"
 export DATE=$(date '+%Y%m%d')
+./scripts/bootstrap.sh
 
 if [ "$BUILDKITE_BRANCH" = "master" ]; then
     earthly --ci --push -P +ci

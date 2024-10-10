@@ -18,7 +18,7 @@ ssh:agent() {
     ssh-add
 }
 ./scripts/bootstrap.sh
-# ssh:agent
+ssh:agent
 # docker:login
 
 EARTHLY_OS="linux"

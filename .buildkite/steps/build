@@ -19,7 +19,6 @@ ssh:agent() {
 }
 
 # ssh:agent
-sleep 200
 docker:login
 
 EARTHLY_OS="linux"

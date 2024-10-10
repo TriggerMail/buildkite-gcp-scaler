@@ -12,3 +12,5 @@ steps:
           containers:
           - image: us-central1-docker.pkg.dev/bluecore-ops/ops/agent-stack-k8s:v15.0.4
             name: container-0
+            securityContext:
+              privileged: true

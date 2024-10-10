@@ -7,7 +7,6 @@ steps:
     agents:
       queue: kubernetes # Switch to Kubernetes queue
     plugins:
-      # - docker-login#v2.1.0: *docker_login_config
     - kubernetes:
         podSpecPatch:
           containers:

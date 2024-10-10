@@ -13,6 +13,5 @@ sleep 30
 # Check if dockerd is running
 if ! docker info > /dev/null 2>&1; then
     echo "Docker daemon failed to start. Check /var/log/dockerd.log for details."
-    sleep 200
     exit 1
 fi

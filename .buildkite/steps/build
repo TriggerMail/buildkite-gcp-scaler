@@ -17,7 +17,7 @@ ssh:agent() {
     export SSH_AUTH_SOCK=/root/.ssh/ssh-agent.sock
     ssh-add
 }
-
+./scripts/bootstrap.sh
 # ssh:agent
 # docker:login
 

@@ -2,6 +2,7 @@ package scaler
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -23,6 +24,28 @@ type Config struct {
 	Concurrency           int
 	MaxRunDuration        int64
 	PollInterval          *time.Duration
+}
+
+type StatsdClient interface {
+	Gauge(name string, value float64, tags []string, rate float64) error
+	// Add other methods you use, e.g. Count, Timing, etc.
+}
+
+type Scaler struct {
+	cfg *Config
+
+	gce interface {
+		LiveInstanceCount(ctx context.Context, projectID, zone, instanceGroupName string) (int64, error)
+		LaunchInstanceForGroup(ctx context.Context, projectID, zone, groupName, templateName string, maxRunDuration int64) error
+	}
+
+	buildkite interface {
+		GetAgentMetrics(context.Context, string) (*buildkite.AgentMetrics, error)
+	}
+
+	logger hclog.Logger
+
+	Statsd StatsdClient
 }
 
 func NewAutoscaler(cfg *Config, logger hclog.Logger) (*Scaler, error) {
@@ -47,23 +70,6 @@ func NewAutoscaler(cfg *Config, logger hclog.Logger) (*Scaler, error) {
 	}
 
 	return &scaler, nil
-}
-
-type Scaler struct {
-	cfg *Config
-
-	gce interface {
-		LiveInstanceCount(ctx context.Context, projectID, zone, instanceGroupName string) (int64, error)
-		LaunchInstanceForGroup(ctx context.Context, projectID, zone, groupName, templateName string, maxRunDuration int64) error
-	}
-
-	buildkite interface {
-		GetAgentMetrics(context.Context, string) (*buildkite.AgentMetrics, error)
-	}
-
-	logger hclog.Logger
-
-	Statsd *statsd.Client
 }
 
 func (s *Scaler) Run(ctx context.Context) error {
@@ -105,11 +111,11 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 		return err
 	}
 
-	if liveInstanceCount >= totalInstanceRequirement {
+	if liveInstanceCount >= totalInstanceRequirement && liveInstanceCount >= 1 {
 		return nil
 	}
-	// required equals total instance needs minus liveinstance count but have 4 instances ready at any time for new work
-	required := totalInstanceRequirement - liveInstanceCount + 4
+	// required equals total instance needs minus liveinstance count, or the max of 1 to ensure there's always at least one instance availble
+	required := int64(math.Max(float64(totalInstanceRequirement-liveInstanceCount), 1))
 
 	errChan := make(chan error, 1)
 	wg := new(sync.WaitGroup)

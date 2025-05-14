@@ -3,8 +3,16 @@ env:
   HOMEBREW_GITHUB_API_TOKEN: ${HOMEBREW_GITHUB_API_TOKEN}
 name: buildkite-gcp-scaler
 description: buildkite-gcp-scaler build pipeline
+
+docker_login_config: &docker_login_config
+  username: _json_key
+  password-env: BUILDKITE_PLUGIN_GCR_JSON_KEY
+  server: https://us-central1-docker.pkg.dev
+  retries: 3
+
 steps:
   - label: ":golang:"
     key: "build"
     command: ".buildkite/steps/build"
-
+    plugins:
+    - docker-login#v2.1.0: *docker_login_config

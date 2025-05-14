@@ -1,5 +1,5 @@
 VERSION 0.7
-FROM us.gcr.io/bluecore-ops/dockerfiles/golang:lint-1.19
+FROM us.gcr.io/bluecore-ops/dockerfiles/golang:lint-1.22
 WORKDIR /app
 ENV GOPRIVATE=github.com/TriggerMail
 
@@ -34,7 +34,7 @@ build:
     SAVE ARTIFACT ./bin/buildkite-gcp-autoscaler /buildkite-gcp-autoscaler
 
 docker:
-    FROM us.gcr.io/bluecore-ops/dockerfiles/golang:lint-1.19
+    FROM us.gcr.io/bluecore-ops/dockerfiles/golang:lint-1.22
     ARG EARTHLY_GIT_SHORT_HASH
     COPY +build/buildkite-gcp-autoscaler /buildkite-gcp-autoscaler
     ENTRYPOINT ["/buildkite-gcp-autoscaler"]

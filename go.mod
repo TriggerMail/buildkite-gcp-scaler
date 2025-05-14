@@ -1,6 +1,6 @@
 module github.com/TriggerMail/buildkite-gcp-scaler
 
-go 1.19
+go 1.22
 
 require (
 	github.com/DataDog/datadog-go v4.8.3+incompatible

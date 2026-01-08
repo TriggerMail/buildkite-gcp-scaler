@@ -2,8 +2,6 @@ module github.com/TriggerMail/buildkite-gcp-scaler
 
 go 1.23.0
 
-toolchain go1.24.4
-
 require (
 	github.com/DataDog/datadog-go v4.8.3+incompatible
 	github.com/buildkite/go-buildkite/v4 v4.13.1

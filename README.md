@@ -14,9 +14,6 @@ Authentication is managed by default credentials in the Google Cloud Go SDK.
 ### Build & Test
 
 ```bash
-# Run all CI steps (tests, lint, docker build)
-make ci
-
 # Run tests only
 make tests
 

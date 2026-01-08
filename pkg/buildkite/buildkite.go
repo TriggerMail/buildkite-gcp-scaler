@@ -15,18 +15,17 @@ type Client struct {
 	Logger          hclog.Logger
 }
 
-func NewClient(org string, agentToken string, logger hclog.Logger) *Client {
+func NewClient(org string, agentToken string, logger hclog.Logger) (*Client, error) {
 	client, err := buildkite.NewOpts(buildkite.WithTokenAuth(agentToken))
 	if err != nil {
-		logger.Error("Failed to create Buildkite client", "error", err)
-		return nil
+		return nil, fmt.Errorf("failed to create Buildkite client: %w", err)
 	}
 
 	return &Client{
 		BuildkiteClient: client,
 		Logger:          logger.Named("bkapi"),
 		OrgSlug:         org,
-	}
+	}, nil
 }
 
 type AgentMetrics struct {
@@ -123,6 +122,19 @@ func (c *Client) jobMatchesCriteria(job *buildkite.Job, queue string, cluster st
 			// Verify it's an exact match by checking boundaries
 			idx := strings.Index(queryRule, targetQueue)
 			endIdx := idx + len(targetQueue)
+
+			// Check character before the match (if exists) is not alphanumeric
+			// This prevents "myqueue=prod" from matching when looking for "queue=prod"
+			if idx > 0 {
+				prevChar := queryRule[idx-1]
+				// If previous character is alphanumeric, underscore, or hyphen, it's not an exact match
+				if (prevChar >= 'a' && prevChar <= 'z') ||
+					(prevChar >= 'A' && prevChar <= 'Z') ||
+					(prevChar >= '0' && prevChar <= '9') ||
+					prevChar == '_' || prevChar == '-' {
+					continue
+				}
+			}
 
 			// Check character after the match (if exists) is not alphanumeric
 			// This prevents "queue=deploy" from matching "queue=deployment"

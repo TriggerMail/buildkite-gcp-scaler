@@ -89,14 +89,14 @@ func TestLiveInstanceCount(t *testing.T) {
 			description:   "Should only count RUNNING instance, not TERMINATED or STOPPING",
 		},
 		{
-			name: "handles empty instance group",
-			instances: []*compute.InstanceWithNamedPorts{},
+			name:          "handles empty instance group",
+			instances:     []*compute.InstanceWithNamedPorts{},
 			expectedCount: 0,
 			description:   "Should return 0 for empty instance group",
 		},
 		{
-			name: "handles nil instances",
-			instances: nil,
+			name:          "handles nil instances",
+			instances:     nil,
 			expectedCount: 0,
 			description:   "Should handle nil instances list gracefully",
 		},
@@ -132,11 +132,11 @@ func TestLiveInstanceCount(t *testing.T) {
 // TestInstanceNameMatching tests the instance name matching logic
 func TestInstanceNameMatching(t *testing.T) {
 	tests := []struct {
-		name             string
-		instanceName     string
-		instanceURLs     []string
-		shouldMatch      []bool
-		description      string
+		name         string
+		instanceName string
+		instanceURLs []string
+		shouldMatch  []bool
+		description  string
 	}{
 		{
 			name:         "exact instance name match",
@@ -183,7 +183,7 @@ func TestInstanceNameMatching(t *testing.T) {
 			for i, url := range tt.instanceURLs {
 				expectedSuffix := "/instances/" + tt.instanceName
 				result := len(url) >= len(expectedSuffix) && url[len(url)-len(expectedSuffix):] == expectedSuffix
-				
+
 				if result != tt.shouldMatch[i] {
 					t.Errorf("%s\nURL: %s\nInstance name: %s\nExpected match=%v, got=%v",
 						tt.description, url, tt.instanceName, tt.shouldMatch[i], result)
@@ -197,7 +197,7 @@ func TestInstanceNameMatching(t *testing.T) {
 func TestVerifyInstanceRetryBehavior(t *testing.T) {
 	t.Run("instance appears immediately", func(t *testing.T) {
 		instanceName := "test-instance-abc123"
-		
+
 		callCount := 0
 		listFunc := func() (*compute.InstanceGroupsListInstances, error) {
 			callCount++
@@ -227,7 +227,7 @@ func TestVerifyInstanceRetryBehavior(t *testing.T) {
 		if !found {
 			t.Error("Should find instance immediately when it appears in first call")
 		}
-		
+
 		if callCount != 1 {
 			t.Errorf("Expected 1 API call, got %d", callCount)
 		}
@@ -235,7 +235,7 @@ func TestVerifyInstanceRetryBehavior(t *testing.T) {
 
 	t.Run("instance appears after retry", func(t *testing.T) {
 		instanceName := "test-instance-abc123"
-		
+
 		callCount := 0
 		listFunc := func() (*compute.InstanceGroupsListInstances, error) {
 			callCount++
@@ -260,7 +260,7 @@ func TestVerifyInstanceRetryBehavior(t *testing.T) {
 		expectedSuffix := "/instances/" + instanceName
 		var found bool
 		maxRetries := 3
-		
+
 		for attempt := 0; attempt < maxRetries; attempt++ {
 			items, _ := listFunc()
 			for _, i := range items.Items {
@@ -279,7 +279,7 @@ func TestVerifyInstanceRetryBehavior(t *testing.T) {
 		if !found {
 			t.Error("Should find instance after retry")
 		}
-		
+
 		if callCount != 2 {
 			t.Errorf("Expected 2 API calls (1 initial + 1 retry), got %d", callCount)
 		}
@@ -287,7 +287,7 @@ func TestVerifyInstanceRetryBehavior(t *testing.T) {
 
 	t.Run("ignores wrong instance with similar name", func(t *testing.T) {
 		instanceName := "buildkite-oneshot-abc123"
-		
+
 		listFunc := func() (*compute.InstanceGroupsListInstances, error) {
 			return &compute.InstanceGroupsListInstances{
 				Items: []*compute.InstanceWithNamedPorts{
@@ -306,7 +306,7 @@ func TestVerifyInstanceRetryBehavior(t *testing.T) {
 		expectedSuffix := "/instances/" + instanceName
 		items, _ := listFunc()
 		found := false
-		
+
 		for _, i := range items.Items {
 			if i.Instance != "" && isLiveInstance(i.Status) {
 				if len(i.Instance) >= len(expectedSuffix) && i.Instance[len(i.Instance)-len(expectedSuffix):] == expectedSuffix {
@@ -323,7 +323,7 @@ func TestVerifyInstanceRetryBehavior(t *testing.T) {
 
 	t.Run("finds correct instance among multiple", func(t *testing.T) {
 		instanceName := "buildkite-oneshot-abc123"
-		
+
 		listFunc := func() (*compute.InstanceGroupsListInstances, error) {
 			return &compute.InstanceGroupsListInstances{
 				Items: []*compute.InstanceWithNamedPorts{
@@ -347,7 +347,7 @@ func TestVerifyInstanceRetryBehavior(t *testing.T) {
 		items, _ := listFunc()
 		found := false
 		foundInstance := ""
-		
+
 		for _, i := range items.Items {
 			if i.Instance != "" && isLiveInstance(i.Status) {
 				if len(i.Instance) >= len(expectedSuffix) && i.Instance[len(i.Instance)-len(expectedSuffix):] == expectedSuffix {
@@ -361,7 +361,7 @@ func TestVerifyInstanceRetryBehavior(t *testing.T) {
 		if !found {
 			t.Error("Should find the correct instance among multiple instances")
 		}
-		
+
 		if !contains(foundInstance, instanceName) {
 			t.Errorf("Found wrong instance: %s", foundInstance)
 		}
@@ -371,10 +371,10 @@ func TestVerifyInstanceRetryBehavior(t *testing.T) {
 // TestInstanceStatusTransitions tests handling of different instance statuses during verification
 func TestInstanceStatusTransitions(t *testing.T) {
 	tests := []struct {
-		name          string
-		status        string
-		shouldCount   bool
-		description   string
+		name        string
+		status      string
+		shouldCount bool
+		description string
 	}{
 		{
 			name:        "PROVISIONING status is valid",
@@ -412,7 +412,7 @@ func TestInstanceStatusTransitions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			instanceName := "test-instance-123"
 			expectedSuffix := "/instances/" + instanceName
-			
+
 			instance := &compute.InstanceWithNamedPorts{
 				Instance: fmt.Sprintf("https://.../instances/%s", instanceName),
 				Status:   tt.status,
@@ -421,7 +421,7 @@ func TestInstanceStatusTransitions(t *testing.T) {
 			// Simulate verification logic
 			found := false
 			if instance.Instance != "" && isLiveInstance(instance.Status) {
-				if len(instance.Instance) >= len(expectedSuffix) && 
+				if len(instance.Instance) >= len(expectedSuffix) &&
 					instance.Instance[len(instance.Instance)-len(expectedSuffix):] == expectedSuffix {
 					found = true
 				}

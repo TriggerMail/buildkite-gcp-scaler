@@ -94,7 +94,8 @@ func (c *Client) waitForOperationCompletion(ctx context.Context, projectID, zone
 		return fmt.Errorf("operation status: %s", o.Status)
 	}
 
-	return backoff.Retry(operation, backoff.NewExponentialBackOff())
+	b := backoff.NewExponentialBackOff()
+	return backoff.Retry(operation, backoff.WithContext(b, ctx))
 }
 
 func (c *Client) LaunchInstanceForGroup(ctx context.Context, projectID, zone, groupName, templateName string, maxRunDuration int64) error {
@@ -170,5 +171,6 @@ func (c *Client) LaunchInstanceForGroup(ctx context.Context, projectID, zone, gr
 		return fmt.Errorf("instance not yet visible in group")
 	}
 
-	return backoff.Retry(verifyInstance, backoff.NewExponentialBackOff())
+	b := backoff.NewExponentialBackOff()
+	return backoff.Retry(verifyInstance, backoff.WithContext(b, ctx))
 }

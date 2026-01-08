@@ -62,10 +62,15 @@ func NewAutoscaler(cfg *Config, logger hclog.Logger) (*Scaler, error) {
 		loggerFields = append(loggerFields, "cluster", "unclustered")
 	}
 
+	bkClient, err := buildkite.NewClient(cfg.OrgSlug, cfg.BuildkiteToken, logger)
+	if err != nil {
+		return nil, err
+	}
+
 	scaler := Scaler{
 		cfg:       cfg,
 		logger:    logger.Named("scaler").With(loggerFields...),
-		buildkite: buildkite.NewClient(cfg.OrgSlug, cfg.BuildkiteToken, logger),
+		buildkite: bkClient,
 		gce:       client,
 	}
 
@@ -125,7 +130,7 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 		s.logger.Debug("no scaling needed", "liveInstances", liveInstanceCount, "totalRequired", totalInstanceRequirement)
 		return nil
 	}
-	// required equals total instance needs minus liveinstance count, or the max of 1 to ensure there's always at least one instance availble
+	// required equals total instance needs minus liveinstance count, or the max of 1 to ensure there's always at least one instance available
 	required := int64(math.Max(float64(totalInstanceRequirement-liveInstanceCount), 1))
 	s.logger.Info("scaling up", "liveInstances", liveInstanceCount, "required", required, "totalRequired", totalInstanceRequirement)
 

@@ -1,4 +1,4 @@
-.PHONY: help tests lint docker docker-push docker-push-test test-local lint-local clean
+.PHONY: help tests lint docker docker-push docker-push-test test-local lint-local build-local clean
 
 # Variables
 DOCKER_REGISTRY := us-central1-docker.pkg.dev/bluecore-ops/ops
@@ -53,6 +53,11 @@ test-local: ## Run tests locally (fast, requires Go installed)
 lint-local: ## Run linter locally (fast, requires Go installed)
 	go fmt ./...
 	go vet ./...
+
+build-local: ## Build binary locally (fast, requires Go installed)
+	@echo "Building binary locally..."
+	go build -o buildkite-gcp-autoscaler .
+	@echo "✓ Binary built: buildkite-gcp-autoscaler"
 
 clean: ## Clean up Docker images
 	@echo "Cleaning up..."

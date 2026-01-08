@@ -204,6 +204,28 @@ func TestJobMatchesCriteria_EdgeCases(t *testing.T) {
 		}
 	})
 
+	t.Run("queue name with prefix does not match", func(t *testing.T) {
+		job := &buildkite.Job{
+			ClusterID:       "cluster-123",
+			AgentQueryRules: []string{"myqueue=prod"},
+		}
+		result := client.jobMatchesCriteria(job, "prod", "cluster-123")
+		if result {
+			t.Error("Should not match 'myqueue=prod' when filtering for queue=prod")
+		}
+	})
+
+	t.Run("production does not match prod queue", func(t *testing.T) {
+		job := &buildkite.Job{
+			ClusterID:       "cluster-123",
+			AgentQueryRules: []string{"queue=production"},
+		}
+		result := client.jobMatchesCriteria(job, "prod", "cluster-123")
+		if result {
+			t.Error("Should not match 'queue=production' when filtering for queue=prod")
+		}
+	})
+
 	t.Run("UUID cluster ID", func(t *testing.T) {
 		clusterID := "f801dad2-e7cc-46fc-aaa2-a8b000174d9b"
 		job := &buildkite.Job{

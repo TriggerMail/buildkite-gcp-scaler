@@ -129,41 +129,48 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 	required := int64(math.Max(float64(totalInstanceRequirement-liveInstanceCount), 1))
 	s.logger.Info("scaling up", "liveInstances", liveInstanceCount, "required", required, "totalRequired", totalInstanceRequirement)
 
-	errChan := make(chan error, 1)
+	errChan := make(chan error, required) // Buffer for all possible errors
 	wg := new(sync.WaitGroup)
-	doneChan := make(chan struct{})
 
 	// Launch instances concurrently
 	wg.Add(int(required))
 	for i := int64(0); i < required; i++ {
 		go func() {
-			*sem <- 1
 			defer wg.Done()
-			if err := s.gce.LaunchInstanceForGroup(ctx, s.cfg.GCPProject, s.cfg.GCPZone, s.cfg.InstanceGroupName, s.cfg.InstanceGroupTemplate, s.cfg.MaxRunDuration); err != nil {
-				select {
-				case errChan <- err:
-					s.logger.Error("Failed to launch instance", "error", err)
-				default:
 
-				}
+			// Check if context is already cancelled before acquiring semaphore
+			select {
+			case <-ctx.Done():
+				s.logger.Debug("context cancelled, skipping instance launch")
+				return
+			default:
 			}
 
-			<-*sem
+			*sem <- 1
+			defer func() { <-*sem }()
+
+			// Check again after acquiring semaphore
+			if ctx.Err() != nil {
+				s.logger.Debug("context cancelled after acquiring semaphore")
+				return
+			}
+
+			if err := s.gce.LaunchInstanceForGroup(ctx, s.cfg.GCPProject, s.cfg.GCPZone, s.cfg.InstanceGroupName, s.cfg.InstanceGroupTemplate, s.cfg.MaxRunDuration); err != nil {
+				errChan <- err
+				s.logger.Error("Failed to launch instance", "error", err)
+			}
 		}()
 	}
 
-	// Signal when all instances are done
-	go func() {
-		wg.Wait()
-		close(doneChan)
-	}()
+	// Wait for all goroutines to complete
+	wg.Wait()
+	close(errChan)
 
-	// Wait for instances to launch OR context cancellation
+	// Return the first error if any occurred
 	select {
-	case <-doneChan:
-		close(errChan)
-		return <-errChan
-	case <-ctx.Done():
-		return ctx.Err()
+	case err := <-errChan:
+		return err
+	default:
+		return nil
 	}
 }

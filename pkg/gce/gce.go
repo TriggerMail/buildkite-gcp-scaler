@@ -34,6 +34,12 @@ func NewClient(logger hclog.Logger) (*Client, error) {
 	}, nil
 }
 
+// isLiveInstance checks if an instance status should be counted as "live"
+// Live instances are those that are starting up or running, capable of picking up work
+func isLiveInstance(status string) bool {
+	return status == "PROVISIONING" || status == "STAGING" || status == "RUNNING"
+}
+
 func (c *Client) LiveInstanceCount(ctx context.Context, projectID, zone, instanceGroupName string) (int64, error) {
 	result, err := c.gSvc.ListInstances(projectID, zone, instanceGroupName, &compute.InstanceGroupsListInstancesRequest{}).
 		Context(ctx).
@@ -45,7 +51,7 @@ func (c *Client) LiveInstanceCount(ctx context.Context, projectID, zone, instanc
 	count := int64(0)
 	for _, i := range result.Items {
 		c.logger.Debug("checking instance in group", "instance", i.Instance, "status", i.Status)
-		if i.Status == "PROVISIONING" || i.Status == "STAGING" || i.Status == "RUNNING" {
+		if isLiveInstance(i.Status) {
 			count++
 		}
 	}
@@ -137,7 +143,7 @@ func (c *Client) LaunchInstanceForGroup(ctx context.Context, projectID, zone, gr
 		return err
 	}
 
-	// Wait for the instance to appear in the instance group with PROVISIONING/RUNNING status
+	// Wait for the instance to appear in the instance group with PROVISIONING/STAGING/RUNNING status
 	// This prevents race conditions where we create multiple instances before they're counted
 	c.logger.Debug("waiting for instance to be visible in group", "instance", iName, "group", groupName)
 
@@ -150,7 +156,7 @@ func (c *Client) LaunchInstanceForGroup(ctx context.Context, projectID, zone, gr
 		}
 
 		for _, i := range result.Items {
-			if i.Instance != "" && (i.Status == "PROVISIONING" || i.Status == "RUNNING") {
+			if i.Instance != "" && isLiveInstance(i.Status) {
 				// Check if this is our instance
 				if len(i.Instance) >= len(iName) && i.Instance[len(i.Instance)-len(iName):] == iName {
 					c.logger.Debug("instance now visible in group", "instance", iName, "status", i.Status)

@@ -1,5 +1,5 @@
 # Stage 1: Download dependencies
-FROM us-central1-docker.pkg.dev/bluecore-ops/dockerfiles/golang:lint-1.22 AS go-mod
+FROM us-central1-docker.pkg.dev/bluecore-ops/dockerfiles/golang:lint-1.23 AS go-mod
 WORKDIR /app
 ENV GOPRIVATE=github.com/TriggerMail
 

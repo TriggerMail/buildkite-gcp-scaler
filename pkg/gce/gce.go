@@ -45,7 +45,7 @@ func (c *Client) LiveInstanceCount(ctx context.Context, projectID, zone, instanc
 	count := int64(0)
 	for _, i := range result.Items {
 		c.logger.Debug("checking instance in group", "instance", i.Instance, "status", i.Status)
-		if i.Status == "PROVISIONING" || i.Status == "RUNNING" {
+		if i.Status == "PROVISIONING" || i.Status == "STAGING" || i.Status == "RUNNING" {
 			count++
 		}
 	}

@@ -29,13 +29,20 @@ RUN go vet ./...
 
 # Stage 5: Build binary
 FROM vendor AS build
-RUN go build -mod=vendor -o bin/buildkite-gcp-autoscaler main.go
+# Set target architecture for the build
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+ENV GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0
+RUN go build -mod=vendor -o bin/buildkite-gcp-autoscaler main.go && \
+    ls -lh /app/bin/buildkite-gcp-autoscaler
 
 # Stage 6: Final runtime image
 FROM alpine:latest AS runtime
 RUN apk --no-cache add ca-certificates git openssh-client
 WORKDIR /
 COPY --from=build /app/bin/buildkite-gcp-autoscaler /buildkite-gcp-autoscaler
+RUN ls -lh /buildkite-gcp-autoscaler && \
+    chmod +x /buildkite-gcp-autoscaler
 ENTRYPOINT ["/buildkite-gcp-autoscaler"]
 
 # Default target for docker build

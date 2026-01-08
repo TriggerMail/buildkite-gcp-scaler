@@ -44,11 +44,13 @@ func (c *Client) LiveInstanceCount(ctx context.Context, projectID, zone, instanc
 
 	count := int64(0)
 	for _, i := range result.Items {
+		c.logger.Debug("checking instance in group", "instance", i.Instance, "status", i.Status)
 		if i.Status == "PROVISIONING" || i.Status == "RUNNING" {
 			count++
 		}
 	}
 
+	c.logger.Debug("live instance count", "count", count, "group", instanceGroupName)
 	return count, nil
 }
 
@@ -131,5 +133,33 @@ func (c *Client) LaunchInstanceForGroup(ctx context.Context, projectID, zone, gr
 		return err
 	}
 
-	return c.waitForOperationCompletion(ctx, projectID, zone, ao)
+	if err := c.waitForOperationCompletion(ctx, projectID, zone, ao); err != nil {
+		return err
+	}
+
+	// Wait for the instance to appear in the instance group with PROVISIONING/RUNNING status
+	// This prevents race conditions where we create multiple instances before they're counted
+	c.logger.Debug("waiting for instance to be visible in group", "instance", iName, "group", groupName)
+
+	verifyInstance := func() error {
+		result, err := c.gSvc.ListInstances(projectID, zone, groupName, &compute.InstanceGroupsListInstancesRequest{}).
+			Context(ctx).
+			Do()
+		if err != nil {
+			return backoff.Permanent(err)
+		}
+
+		for _, i := range result.Items {
+			if i.Instance != "" && (i.Status == "PROVISIONING" || i.Status == "RUNNING") {
+				// Check if this is our instance
+				if len(i.Instance) >= len(iName) && i.Instance[len(i.Instance)-len(iName):] == iName {
+					c.logger.Debug("instance now visible in group", "instance", iName, "status", i.Status)
+					return nil
+				}
+			}
+		}
+		return fmt.Errorf("instance not yet visible in group")
+	}
+
+	return backoff.Retry(verifyInstance, backoff.NewExponentialBackOff())
 }

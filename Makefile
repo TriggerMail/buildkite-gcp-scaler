@@ -8,7 +8,7 @@ IMAGE_TAG := $(GIT_SHORT_HASH)
 FULL_IMAGE := $(DOCKER_REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
 
 # Docker build options
-DOCKER_BUILD_OPTS := --ssh default
+DOCKER_BUILD_OPTS := --ssh default --platform linux/amd64
 DOCKER_BUILDKIT := 1
 export DOCKER_BUILDKIT
 

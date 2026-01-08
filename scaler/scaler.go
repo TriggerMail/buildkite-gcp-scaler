@@ -119,16 +119,22 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 		return err
 	}
 
+	s.logger.Debug("scaling decision", "liveInstances", liveInstanceCount, "totalRequired", totalInstanceRequirement, "scheduled", metrics.ScheduledJobs, "running", metrics.RunningJobs)
+
 	if liveInstanceCount >= totalInstanceRequirement && liveInstanceCount >= 1 {
+		s.logger.Debug("no scaling needed", "liveInstances", liveInstanceCount, "totalRequired", totalInstanceRequirement)
 		return nil
 	}
 	// required equals total instance needs minus liveinstance count, or the max of 1 to ensure there's always at least one instance availble
 	required := int64(math.Max(float64(totalInstanceRequirement-liveInstanceCount), 1))
+	s.logger.Info("scaling up", "liveInstances", liveInstanceCount, "required", required, "totalRequired", totalInstanceRequirement)
 
 	errChan := make(chan error, 1)
 	wg := new(sync.WaitGroup)
-	wg.Add(int(required))
+	doneChan := make(chan struct{})
 
+	// Launch instances concurrently
+	wg.Add(int(required))
 	for i := int64(0); i < required; i++ {
 		go func() {
 			*sem <- 1
@@ -146,7 +152,18 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 		}()
 	}
 
-	wg.Wait()
-	close(errChan)
-	return <-errChan
+	// Signal when all instances are done
+	go func() {
+		wg.Wait()
+		close(doneChan)
+	}()
+
+	// Wait for instances to launch OR context cancellation
+	select {
+	case <-doneChan:
+		close(errChan)
+		return <-errChan
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/cenkalti/backoff"
 	hclog "github.com/hashicorp/go-hclog"
@@ -157,8 +158,10 @@ func (c *Client) LaunchInstanceForGroup(ctx context.Context, projectID, zone, gr
 
 		for _, i := range result.Items {
 			if i.Instance != "" && isLiveInstance(i.Status) {
-				// Check if this is our instance
-				if len(i.Instance) >= len(iName) && i.Instance[len(i.Instance)-len(iName):] == iName {
+				// Check if this is our instance by matching the full path
+				// i.Instance format: https://.../instances/{instance-name}
+				expectedSuffix := "/instances/" + iName
+				if strings.HasSuffix(i.Instance, expectedSuffix) {
 					c.logger.Debug("instance now visible in group", "instance", iName, "status", i.Status)
 					return nil
 				}

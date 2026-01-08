@@ -40,37 +40,57 @@ type AgentMetrics struct {
 func (c *Client) GetAgentMetrics(ctx context.Context, queue string, cluster string) (*AgentMetrics, error) {
 	c.Logger.Debug("Collecting agent metrics", "queue", queue, "cluster", cluster)
 
-	// List builds with the specified state filters
-	builds, _, err := c.BuildkiteClient.Builds.ListByOrg(ctx, c.OrgSlug, &buildkite.BuildsListOptions{
-		State: []string{"running", "scheduled"},
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
 	metrics := AgentMetrics{
 		OrgSlug: c.OrgSlug,
 		Queue:   queue,
 		Cluster: cluster,
 	}
 
-	// iterate over all builds and count the number of scheduled and running jobs
-	for _, build := range builds {
-		for _, job := range build.Jobs {
-			// Check if job matches the criteria
-			if c.jobMatchesCriteria(&job, queue, cluster) {
-				if job.State == "scheduled" {
-					metrics.ScheduledJobs++
-				}
-				if job.State == "running" {
-					metrics.RunningJobs++
+	// Paginate through all builds with running/scheduled state
+	opts := &buildkite.BuildsListOptions{
+		State: []string{"running", "scheduled"},
+		ListOptions: buildkite.ListOptions{
+			PerPage: 100, // Fetch more per page to reduce API calls
+		},
+	}
+
+	pageNum := 1
+	for {
+		c.Logger.Debug("fetching builds page", "page", pageNum)
+
+		builds, resp, err := c.BuildkiteClient.Builds.ListByOrg(ctx, c.OrgSlug, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list builds (page %d): %w", pageNum, err)
+		}
+
+		c.Logger.Debug("processing builds", "count", len(builds), "page", pageNum)
+
+		// Process builds on this page
+		for _, build := range builds {
+			for _, job := range build.Jobs {
+				// Check if job matches the criteria
+				if c.jobMatchesCriteria(&job, queue, cluster) {
+					if job.State == "scheduled" {
+						metrics.ScheduledJobs++
+					}
+					if job.State == "running" {
+						metrics.RunningJobs++
+					}
 				}
 			}
 		}
+
+		// Check if there are more pages
+		if resp.NextPage == 0 {
+			break
+		}
+
+		// Move to next page
+		opts.Page = resp.NextPage
+		pageNum++
 	}
 
-	c.Logger.Debug("Retrieved agent metrics", "scheduled", metrics.ScheduledJobs, "running", metrics.RunningJobs, "cluster", cluster)
+	c.Logger.Debug("Retrieved agent metrics", "scheduled", metrics.ScheduledJobs, "running", metrics.RunningJobs, "cluster", cluster, "pages", pageNum)
 	return &metrics, nil
 }
 
@@ -91,9 +111,31 @@ func (c *Client) jobMatchesCriteria(job *buildkite.Job, queue string, cluster st
 	}
 
 	// Cluster criteria matches, now check queue in AgentQueryRules
+	// Queue can appear in different formats:
+	// - "queue=deploy" (standalone)
+	// - "os=linux AND queue=deploy" (with preceding rules)
+	// - "queue=deploy AND arch=amd64" (with trailing rules)
+	// We need to match the exact queue name, not substrings
 	targetQueue := fmt.Sprintf("queue=%s", queue)
 	for _, queryRule := range job.AgentQueryRules {
+		// Check if the rule contains our target queue
 		if strings.Contains(queryRule, targetQueue) {
+			// Verify it's an exact match by checking boundaries
+			idx := strings.Index(queryRule, targetQueue)
+			endIdx := idx + len(targetQueue)
+
+			// Check character after the match (if exists) is not alphanumeric
+			// This prevents "queue=deploy" from matching "queue=deployment"
+			if endIdx < len(queryRule) {
+				nextChar := queryRule[endIdx]
+				// If next character is alphanumeric, underscore, or hyphen, it's not an exact match
+				if (nextChar >= 'a' && nextChar <= 'z') ||
+					(nextChar >= 'A' && nextChar <= 'Z') ||
+					(nextChar >= '0' && nextChar <= '9') ||
+					nextChar == '_' || nextChar == '-' {
+					continue
+				}
+			}
 			return true
 		}
 	}

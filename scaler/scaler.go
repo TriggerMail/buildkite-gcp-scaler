@@ -20,6 +20,7 @@ type Config struct {
 	InstanceGroupName     string
 	InstanceGroupTemplate string
 	BuildkiteQueue        string
+	BuildkiteCluster      string
 	BuildkiteToken        string
 	Concurrency           int
 	MaxRunDuration        int64
@@ -40,7 +41,7 @@ type Scaler struct {
 	}
 
 	buildkite interface {
-		GetAgentMetrics(context.Context, string) (*buildkite.AgentMetrics, error)
+		GetAgentMetrics(context.Context, string, string) (*buildkite.AgentMetrics, error)
 	}
 
 	logger hclog.Logger
@@ -54,9 +55,16 @@ func NewAutoscaler(cfg *Config, logger hclog.Logger) (*Scaler, error) {
 		return nil, err
 	}
 
+	loggerFields := []interface{}{"queue", cfg.BuildkiteQueue}
+	if cfg.BuildkiteCluster != "" {
+		loggerFields = append(loggerFields, "cluster", cfg.BuildkiteCluster)
+	} else {
+		loggerFields = append(loggerFields, "cluster", "unclustered")
+	}
+
 	scaler := Scaler{
 		cfg:       cfg,
-		logger:    logger.Named("scaler").With("queue", cfg.BuildkiteQueue),
+		logger:    logger.Named("scaler").With(loggerFields...),
 		buildkite: buildkite.NewClient(cfg.OrgSlug, cfg.BuildkiteToken, logger),
 		gce:       client,
 	}
@@ -95,7 +103,7 @@ func (s *Scaler) Run(ctx context.Context) error {
 }
 
 func (s *Scaler) run(ctx context.Context, sem *chan int) error {
-	metrics, err := s.buildkite.GetAgentMetrics(ctx, s.cfg.BuildkiteQueue)
+	metrics, err := s.buildkite.GetAgentMetrics(ctx, s.cfg.BuildkiteQueue, s.cfg.BuildkiteCluster)
 	if err != nil {
 		return err
 	}

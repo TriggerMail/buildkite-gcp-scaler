@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -eu
+
+trap 'kill $(jobs -p); wait' SIGINT SIGTERM
+
+echo "--- :key: Setting up SSH agent"
+ssh:agent() {
+    [[ -S /root/.ssh/ssh-agent.sock ]] || ssh-agent -a ~/.ssh/ssh-agent.sock
+    export SSH_AUTH_SOCK=/root/.ssh/ssh-agent.sock
+    ssh-add
+}
+
+ssh:agent
+
+echo "--- :lint-roller: Running linter"
+export DOCKER_BUILDKIT=1
+
+# Run linter
+make lint
+
+echo "--- :white_check_mark: Linting passed"

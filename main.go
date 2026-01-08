@@ -14,6 +14,7 @@ import (
 var (
 	buildkiteToken           string
 	buildkiteQueue           string
+	buildkiteCluster         string
 	datadogHost              string
 	googleCloudProject       string
 	googleCloudZone          string
@@ -45,6 +46,7 @@ func (cmd *runCommand) Run(ctx context.Context, args []string) error {
 		InstanceGroupName:     googleCloudInstanceGroup,
 		InstanceGroupTemplate: googleCloudTemplateName,
 		BuildkiteQueue:        buildkiteQueue,
+		BuildkiteCluster:      buildkiteCluster,
 		BuildkiteToken:        buildkiteToken,
 		OrgSlug:               orgSlug,
 		Concurrency:           concurrency,
@@ -82,6 +84,7 @@ func main() {
 	p.FlagSet.BoolVar(&debug, "d", false, "enable debug logging")
 	p.FlagSet.StringVar(&buildkiteToken, "buildkite-token", "", "Buildkite API Token")
 	p.FlagSet.StringVar(&buildkiteQueue, "buildkite-queue", "default", "Buildkite Queue Name")
+	p.FlagSet.StringVar(&buildkiteCluster, "buildkite-cluster", "", "Buildkite Cluster ID (leave empty for unclustered agents)")
 	p.FlagSet.StringVar(&googleCloudInstanceGroup, "instance-group", "", "Google Cloud Instance Group")
 	p.FlagSet.StringVar(&googleCloudTemplateName, "instance-template", "", "Google Cloud Instance Template")
 	p.FlagSet.StringVar(&googleCloudProject, "gcp-project", "", "Google Cloud Project")

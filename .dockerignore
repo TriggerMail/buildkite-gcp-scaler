@@ -1,0 +1,45 @@
+# Binaries
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Vendor directory (will be created during build)
+vendor/
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+CLUSTER_UPGRADE.md
+CHANGES_SUMMARY.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Earthfile
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/

@@ -2,7 +2,6 @@ package scaler
 
 import (
 	"context"
-	"math"
 	"sync"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/TriggerMail/buildkite-gcp-scaler/pkg/buildkite"
 	"github.com/TriggerMail/buildkite-gcp-scaler/pkg/gce"
 	hclog "github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-multierror"
 )
 
 type Config struct {
@@ -25,6 +25,7 @@ type Config struct {
 	Concurrency           int
 	MaxRunDuration        int64
 	PollInterval          *time.Duration
+	AgentsPerInstance     int64 // Number of agents each VM instance spawns (default: 1)
 }
 
 type StatsdClient interface {
@@ -116,23 +117,59 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 	s.Statsd.Gauge("buildkite-gcp-autoscaler.scheduled_jobs", float64(metrics.ScheduledJobs), []string{}, 1)
 	s.Statsd.Gauge("buildkite-gcp-autoscaler.running_jobs", float64(metrics.RunningJobs), []string{}, 1)
 
-	totalInstanceRequirement := metrics.ScheduledJobs + metrics.RunningJobs
+	totalJobDemand := metrics.ScheduledJobs + metrics.RunningJobs
 
+	// Get current VM count
 	liveInstanceCount, err := s.gce.LiveInstanceCount(ctx, s.cfg.GCPProject, s.cfg.GCPZone, s.cfg.InstanceGroupName)
 	s.Statsd.Gauge("buildkite-gcp-autoscaler.live_instance", float64(liveInstanceCount), []string{}, 1)
 	if err != nil {
 		return err
 	}
 
-	s.logger.Debug("scaling decision", "liveInstances", liveInstanceCount, "totalRequired", totalInstanceRequirement, "scheduled", metrics.ScheduledJobs, "running", metrics.RunningJobs)
+	// Calculate agent capacity: VMs * agents per VM
+	agentsPerInstance := s.cfg.AgentsPerInstance
+	if agentsPerInstance <= 0 {
+		agentsPerInstance = 1 // Default to 1 agent per instance if not configured
+	}
+	currentAgentCapacity := liveInstanceCount * agentsPerInstance
 
-	if liveInstanceCount >= totalInstanceRequirement && liveInstanceCount >= 1 {
-		s.logger.Debug("no scaling needed", "liveInstances", liveInstanceCount, "totalRequired", totalInstanceRequirement)
+	// Calculate how many instances we need based on job demand and agents per instance
+	// Round up division: (jobs + agentsPerInstance - 1) / agentsPerInstance
+	requiredInstances := (totalJobDemand + agentsPerInstance - 1) / agentsPerInstance
+	if requiredInstances < 1 {
+		requiredInstances = 1 // Always maintain at least one instance
+	}
+
+	s.logger.Debug("scaling decision",
+		"liveInstances", liveInstanceCount,
+		"agentsPerInstance", agentsPerInstance,
+		"currentAgentCapacity", currentAgentCapacity,
+		"totalJobDemand", totalJobDemand,
+		"requiredInstances", requiredInstances,
+		"scheduled", metrics.ScheduledJobs,
+		"running", metrics.RunningJobs)
+
+	// Check if we have enough capacity
+	if currentAgentCapacity >= totalJobDemand && liveInstanceCount >= 1 {
+		s.logger.Debug("no scaling needed",
+			"currentAgentCapacity", currentAgentCapacity,
+			"totalJobDemand", totalJobDemand,
+			"liveInstances", liveInstanceCount)
 		return nil
 	}
-	// required equals total instance needs minus liveinstance count, or the max of 1 to ensure there's always at least one instance available
-	required := int64(math.Max(float64(totalInstanceRequirement-liveInstanceCount), 1))
-	s.logger.Info("scaling up", "liveInstances", liveInstanceCount, "required", required, "totalRequired", totalInstanceRequirement)
+
+	// Calculate how many more instances we need
+	required := requiredInstances - liveInstanceCount
+	if required <= 0 {
+		required = 1 // Ensure at least one instance if we got here
+	}
+
+	s.logger.Info("scaling up",
+		"liveInstances", liveInstanceCount,
+		"currentAgentCapacity", currentAgentCapacity,
+		"required", required,
+		"totalJobDemand", totalJobDemand,
+		"agentsPerInstance", agentsPerInstance)
 
 	errChan := make(chan error, required) // Buffer for all possible errors
 	wg := new(sync.WaitGroup)
@@ -171,11 +208,11 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 	wg.Wait()
 	close(errChan)
 
-	// Return the first error if any occurred
-	select {
-	case err := <-errChan:
-		return err
-	default:
-		return nil
+	// Collect all errors that occurred
+	var result error
+	for err := range errChan {
+		result = multierror.Append(result, err)
 	}
+
+	return result
 }

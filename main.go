@@ -15,6 +15,7 @@ var (
 	buildkiteToken           string
 	buildkiteQueue           string
 	buildkiteCluster         string
+	agentsPerInstance        int64
 	datadogHost              string
 	googleCloudProject       string
 	googleCloudZone          string
@@ -52,6 +53,7 @@ func (cmd *runCommand) Run(ctx context.Context, args []string) error {
 		Concurrency:           concurrency,
 		Datadog:               datadogHost,
 		MaxRunDuration:        maxRunDuration,
+		AgentsPerInstance:     agentsPerInstance,
 	}
 
 	if interval != "" {
@@ -85,6 +87,7 @@ func main() {
 	p.FlagSet.StringVar(&buildkiteToken, "buildkite-token", "", "Buildkite API Token")
 	p.FlagSet.StringVar(&buildkiteQueue, "buildkite-queue", "default", "Buildkite Queue Name")
 	p.FlagSet.StringVar(&buildkiteCluster, "buildkite-cluster", "", "Buildkite Cluster ID (leave empty for unclustered agents)")
+	p.FlagSet.Int64Var(&agentsPerInstance, "agents-per-instance", 1, "Number of Buildkite agents spawned per VM instance (e.g., BUILDKITE_AGENT_SPAWN)")
 	p.FlagSet.StringVar(&googleCloudInstanceGroup, "instance-group", "", "Google Cloud Instance Group")
 	p.FlagSet.StringVar(&googleCloudTemplateName, "instance-template", "", "Google Cloud Instance Template")
 	p.FlagSet.StringVar(&googleCloudProject, "gcp-project", "", "Google Cloud Project")

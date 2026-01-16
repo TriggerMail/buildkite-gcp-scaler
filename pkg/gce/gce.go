@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/cenkalti/backoff"
 	hclog "github.com/hashicorp/go-hclog"
@@ -34,6 +35,12 @@ func NewClient(logger hclog.Logger) (*Client, error) {
 	}, nil
 }
 
+// isLiveInstance checks if an instance status should be counted as "live"
+// Live instances are those that are starting up or running, capable of picking up work
+func isLiveInstance(status string) bool {
+	return status == "PROVISIONING" || status == "STAGING" || status == "RUNNING"
+}
+
 func (c *Client) LiveInstanceCount(ctx context.Context, projectID, zone, instanceGroupName string) (int64, error) {
 	result, err := c.gSvc.ListInstances(projectID, zone, instanceGroupName, &compute.InstanceGroupsListInstancesRequest{}).
 		Context(ctx).
@@ -44,11 +51,13 @@ func (c *Client) LiveInstanceCount(ctx context.Context, projectID, zone, instanc
 
 	count := int64(0)
 	for _, i := range result.Items {
-		if i.Status == "PROVISIONING" || i.Status == "RUNNING" {
+		c.logger.Debug("checking instance in group", "instance", i.Instance, "status", i.Status)
+		if isLiveInstance(i.Status) {
 			count++
 		}
 	}
 
+	c.logger.Debug("live instance count", "count", count, "group", instanceGroupName)
 	return count, nil
 }
 
@@ -85,7 +94,8 @@ func (c *Client) waitForOperationCompletion(ctx context.Context, projectID, zone
 		return fmt.Errorf("operation status: %s", o.Status)
 	}
 
-	return backoff.Retry(operation, backoff.NewExponentialBackOff())
+	b := backoff.NewExponentialBackOff()
+	return backoff.Retry(operation, backoff.WithContext(b, ctx))
 }
 
 func (c *Client) LaunchInstanceForGroup(ctx context.Context, projectID, zone, groupName, templateName string, maxRunDuration int64) error {
@@ -131,5 +141,36 @@ func (c *Client) LaunchInstanceForGroup(ctx context.Context, projectID, zone, gr
 		return err
 	}
 
-	return c.waitForOperationCompletion(ctx, projectID, zone, ao)
+	if err := c.waitForOperationCompletion(ctx, projectID, zone, ao); err != nil {
+		return err
+	}
+
+	// Wait for the instance to appear in the instance group with PROVISIONING/STAGING/RUNNING status
+	// This prevents race conditions where we create multiple instances before they're counted
+	c.logger.Debug("waiting for instance to be visible in group", "instance", iName, "group", groupName)
+
+	verifyInstance := func() error {
+		result, err := c.gSvc.ListInstances(projectID, zone, groupName, &compute.InstanceGroupsListInstancesRequest{}).
+			Context(ctx).
+			Do()
+		if err != nil {
+			return backoff.Permanent(err)
+		}
+
+		for _, i := range result.Items {
+			if i.Instance != "" && isLiveInstance(i.Status) {
+				// Check if this is our instance by matching the full path
+				// i.Instance format: https://.../instances/{instance-name}
+				expectedSuffix := "/instances/" + iName
+				if strings.HasSuffix(i.Instance, expectedSuffix) {
+					c.logger.Debug("instance now visible in group", "instance", iName, "status", i.Status)
+					return nil
+				}
+			}
+		}
+		return fmt.Errorf("instance not yet visible in group")
+	}
+
+	b := backoff.NewExponentialBackOff()
+	return backoff.Retry(verifyInstance, backoff.WithContext(b, ctx))
 }

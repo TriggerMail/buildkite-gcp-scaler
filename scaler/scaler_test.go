@@ -20,7 +20,7 @@ type mockBuildkite struct {
 	err     error
 }
 
-func (m *mockBuildkite) GetAgentMetrics(ctx context.Context, queue string) (*buildkite.AgentMetrics, error) {
+func (m *mockBuildkite) GetAgentMetrics(ctx context.Context, queue string, cluster string) (*buildkite.AgentMetrics, error) {
 	return m.metrics, m.err
 }
 

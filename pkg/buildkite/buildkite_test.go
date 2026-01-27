@@ -111,7 +111,18 @@ func TestJobMatchesCriteria(t *testing.T) {
 			description:   "Job with queue=deployment should not match when filtering for queue=deploy",
 		},
 		{
-			name: "job with no query rules does not match",
+			name: "job with empty query rules matches oneshot queue",
+			job: &buildkite.Job{
+				ClusterID:       "",
+				AgentQueryRules: []string{},
+			},
+			queue:         "oneshot",
+			cluster:       "",
+			expectedMatch: true,
+			description:   "Job with no agent query rules should match the 'oneshot' queue",
+		},
+		{
+			name: "job with empty query rules does not match non-default queue",
 			job: &buildkite.Job{
 				ClusterID:       "cluster-123",
 				AgentQueryRules: []string{},
@@ -119,18 +130,18 @@ func TestJobMatchesCriteria(t *testing.T) {
 			queue:         "deploy",
 			cluster:       "cluster-123",
 			expectedMatch: false,
-			description:   "Job with no agent query rules should not match any queue filter",
+			description:   "Job with no agent query rules should not match a non-default queue",
 		},
 		{
-			name: "job with nil query rules does not match",
+			name: "job with nil query rules matches oneshot queue",
 			job: &buildkite.Job{
-				ClusterID:       "cluster-123",
+				ClusterID:       "",
 				AgentQueryRules: nil,
 			},
-			queue:         "deploy",
-			cluster:       "cluster-123",
-			expectedMatch: false,
-			description:   "Job with nil agent query rules should not match any queue filter",
+			queue:         "oneshot",
+			cluster:       "",
+			expectedMatch: true,
+			description:   "Job with nil agent query rules should match the 'oneshot' queue",
 		},
 		{
 			name: "case sensitive queue matching",

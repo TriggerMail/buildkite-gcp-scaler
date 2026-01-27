@@ -25,6 +25,7 @@ var (
 	interval                 string
 	concurrency              int
 	maxRunDuration           int64
+	minInstances             int64
 	logger                   hclog.Logger
 )
 
@@ -54,6 +55,7 @@ func (cmd *runCommand) Run(ctx context.Context, args []string) error {
 		Datadog:               datadogHost,
 		MaxRunDuration:        maxRunDuration,
 		AgentsPerInstance:     agentsPerInstance,
+		MinInstances:          minInstances,
 	}
 
 	if interval != "" {
@@ -97,6 +99,7 @@ func main() {
 	p.FlagSet.StringVar(&datadogHost, "datadog", "", "datadog host:port")
 	p.FlagSet.IntVar(&concurrency, "concurrency", 10, "How many concurrent instances to create")
 	p.FlagSet.Int64Var(&maxRunDuration, "maxRunDuration", 3600, "maximum time an instance can run")
+	p.FlagSet.Int64Var(&minInstances, "min-instances", 1, "Minimum number of VM instances to keep running")
 
 	p.Before = func(ctx context.Context) error {
 		logLevel := "INFO"

@@ -253,7 +253,7 @@ func TestScalerRun_LaunchInstanceError(t *testing.T) {
 	err := scaler.run(ctx, &sem)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "launch error")
-	assert.Equal(t, 2, gce.launches)
+	assert.Equal(t, 3, gce.launches)
 }
 
 func TestScalerRun_ConcurrencyRespected(t *testing.T) {

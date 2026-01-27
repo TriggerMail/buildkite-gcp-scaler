@@ -159,9 +159,6 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 	}
 
 	// Calculate how many more instances we need
-	required := requiredInstances - liveInstanceCount
-	if required <= 0 {
-		required = 1 // Ensure at least one instance if we got here
 	instancesToLaunch := requiredInstances - liveInstanceCount
 	if instancesToLaunch <= 0 {
 		return nil // Nothing to launch
@@ -170,18 +167,15 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 	s.logger.Info("scaling up",
 		"liveInstances", liveInstanceCount,
 		"currentAgentCapacity", currentAgentCapacity,
-		"required", required,
-		"required", instancesToLaunch,
+		"requiredInstances", requiredInstances,
+		"instancesToLaunch", instancesToLaunch,
 		"totalJobDemand", totalJobDemand,
 		"agentsPerInstance", agentsPerInstance)
 
-	errChan := make(chan error, required) // Buffer for all possible errors
-	errChan := make(chan error, instancesToLaunch) // Buffer for all possible errors
+	errChan := make(chan error, int(instancesToLaunch)) // Buffer for all possible errors
 	wg := new(sync.WaitGroup)
 
 	// Launch instances concurrently
-	wg.Add(int(required))
-	for i := int64(0); i < required; i++ {
 	wg.Add(int(instancesToLaunch))
 	for i := int64(0); i < instancesToLaunch; i++ {
 		go func() {

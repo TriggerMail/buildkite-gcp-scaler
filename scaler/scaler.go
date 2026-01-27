@@ -136,8 +136,8 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 	// Calculate how many instances we need based on job demand and agents per instance
 	// Round up division: (jobs + agentsPerInstance - 1) / agentsPerInstance
 	requiredInstances := (totalJobDemand + agentsPerInstance - 1) / agentsPerInstance
-	if requiredInstances < 1 {
-		requiredInstances = 1 // Always maintain at least one instance
+	if requiredInstances < 3 {
+		requiredInstances = 3 // Always maintain at least three instances
 	}
 
 	s.logger.Debug("scaling decision",
@@ -150,7 +150,7 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 		"running", metrics.RunningJobs)
 
 	// Check if we have enough capacity
-	if currentAgentCapacity >= totalJobDemand && liveInstanceCount >= 1 {
+	if currentAgentCapacity >= totalJobDemand && liveInstanceCount >= requiredInstances {
 		s.logger.Debug("no scaling needed",
 			"currentAgentCapacity", currentAgentCapacity,
 			"totalJobDemand", totalJobDemand,
@@ -162,21 +162,28 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 	required := requiredInstances - liveInstanceCount
 	if required <= 0 {
 		required = 1 // Ensure at least one instance if we got here
+	instancesToLaunch := requiredInstances - liveInstanceCount
+	if instancesToLaunch <= 0 {
+		return nil // Nothing to launch
 	}
 
 	s.logger.Info("scaling up",
 		"liveInstances", liveInstanceCount,
 		"currentAgentCapacity", currentAgentCapacity,
 		"required", required,
+		"required", instancesToLaunch,
 		"totalJobDemand", totalJobDemand,
 		"agentsPerInstance", agentsPerInstance)
 
 	errChan := make(chan error, required) // Buffer for all possible errors
+	errChan := make(chan error, instancesToLaunch) // Buffer for all possible errors
 	wg := new(sync.WaitGroup)
 
 	// Launch instances concurrently
 	wg.Add(int(required))
 	for i := int64(0); i < required; i++ {
+	wg.Add(int(instancesToLaunch))
+	for i := int64(0); i < instancesToLaunch; i++ {
 		go func() {
 			defer wg.Done()
 

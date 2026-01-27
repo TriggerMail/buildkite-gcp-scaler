@@ -137,6 +137,12 @@ func (c *Client) jobMatchesCriteria(job *buildkite.Job, queue string, cluster st
 		}
 	}
 
+	// Handle jobs with no specific agent targeting (which go to the 'default' queue)
+	if len(job.AgentQueryRules) == 0 {
+		// This job matches if the scaler is configured for the 'oneshot' queue
+		return queue == "oneshot"
+	}
+
 	// Cluster criteria matches, now check queue in AgentQueryRules
 	// Queue can appear in different formats:
 	// - "queue=deploy" (standalone)

@@ -130,7 +130,7 @@ func TestScalerRun_ScalingNeeded(t *testing.T) {
 	assert.Equal(t, 3, gce.launches)
 }
 
-func TestScalerRun_AlwaysAtLeastOneInstance(t *testing.T) {
+func TestScalerRun_MaintainsMinimumInstances(t *testing.T) {
 	ctx := context.Background()
 	sem := make(chan int, 2)
 
@@ -162,8 +162,8 @@ func TestScalerRun_AlwaysAtLeastOneInstance(t *testing.T) {
 
 	err := scaler.run(ctx, &sem)
 	assert.NoError(t, err)
-	// Should launch at least 1 instance
-	assert.Equal(t, 1, gce.launches)
+	// Should launch 3 instances to meet the minimum requirement
+	assert.Equal(t, 3, gce.launches)
 }
 
 func TestScalerRun_BuildkiteError(t *testing.T) {

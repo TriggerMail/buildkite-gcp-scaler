@@ -166,8 +166,8 @@ func TestScalerRun_MaintainsMinimumInstances(t *testing.T) {
 
 	err := scaler.run(ctx, &sem)
 	assert.NoError(t, err)
-	// Should launch 3 instances to meet the minimum requirement
-	assert.Equal(t, 3, gce.launches)
+	// Should launch minInstances (1) to meet the minimum requirement
+	assert.Equal(t, int(scaler.cfg.MinInstances), gce.launches)
 }
 
 func TestScalerRun_BuildkiteError(t *testing.T) {

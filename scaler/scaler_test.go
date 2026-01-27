@@ -67,6 +67,7 @@ func TestScalerRun_NoScalingNeeded(t *testing.T) {
 		metrics: &buildkite.AgentMetrics{
 			ScheduledJobs: 2,
 			RunningJobs:   2,
+			WaitingJobs:   0,
 		},
 	}
 	gce := &mockGCE{
@@ -102,6 +103,7 @@ func TestScalerRun_ScalingNeeded(t *testing.T) {
 		metrics: &buildkite.AgentMetrics{
 			ScheduledJobs: 3,
 			RunningJobs:   2,
+			WaitingJobs:   2,
 		},
 	}
 	gce := &mockGCE{
@@ -126,8 +128,8 @@ func TestScalerRun_ScalingNeeded(t *testing.T) {
 
 	err := scaler.run(ctx, &sem)
 	assert.NoError(t, err)
-	// Should launch 3 instances (5 needed - 2 live)
-	assert.Equal(t, 3, gce.launches)
+	// Should launch 5 instances (7 needed - 2 live)
+	assert.Equal(t, 5, gce.launches)
 }
 
 func TestScalerRun_AlwaysAtLeastOneInstance(t *testing.T) {
@@ -138,6 +140,7 @@ func TestScalerRun_AlwaysAtLeastOneInstance(t *testing.T) {
 		metrics: &buildkite.AgentMetrics{
 			ScheduledJobs: 0,
 			RunningJobs:   0,
+			WaitingJobs:   0,
 		},
 	}
 	gce := &mockGCE{
@@ -153,6 +156,7 @@ func TestScalerRun_AlwaysAtLeastOneInstance(t *testing.T) {
 			InstanceGroupName:     "group",
 			InstanceGroupTemplate: "tmpl",
 			MaxRunDuration:        60,
+			MinInstances:          1,
 		},
 		buildkite: bk,
 		gce:       gce,
@@ -198,6 +202,7 @@ func TestScalerRun_GCECountError(t *testing.T) {
 		metrics: &buildkite.AgentMetrics{
 			ScheduledJobs: 1,
 			RunningJobs:   1,
+			WaitingJobs:   1,
 		},
 	}
 	gce := &mockGCE{
@@ -227,6 +232,7 @@ func TestScalerRun_LaunchInstanceError(t *testing.T) {
 		metrics: &buildkite.AgentMetrics{
 			ScheduledJobs: 2,
 			RunningJobs:   0,
+			WaitingJobs:   2,
 		},
 	}
 	gce := &mockGCE{
@@ -253,7 +259,7 @@ func TestScalerRun_LaunchInstanceError(t *testing.T) {
 	err := scaler.run(ctx, &sem)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "launch error")
-	assert.Equal(t, 2, gce.launches)
+	assert.Equal(t, 4, gce.launches)
 }
 
 func TestScalerRun_ConcurrencyRespected(t *testing.T) {
@@ -264,6 +270,7 @@ func TestScalerRun_ConcurrencyRespected(t *testing.T) {
 		metrics: &buildkite.AgentMetrics{
 			ScheduledJobs: 3,
 			RunningJobs:   0,
+			WaitingJobs:   2,
 		},
 	}
 	gce := &mockGCE{
@@ -298,5 +305,5 @@ func TestScalerRun_ConcurrencyRespected(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("run did not finish in time")
 	}
-	assert.Equal(t, 3, gce.launches)
+	assert.Equal(t, 5, gce.launches)
 }

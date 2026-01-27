@@ -26,6 +26,7 @@ type Config struct {
 	MaxRunDuration        int64
 	PollInterval          *time.Duration
 	AgentsPerInstance     int64 // Number of agents each VM instance spawns (default: 1)
+	MinInstances          int64 // Minimum number of VM instances to keep running
 }
 
 type StatsdClient interface {
@@ -116,8 +117,9 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 
 	s.Statsd.Gauge("buildkite-gcp-autoscaler.scheduled_jobs", float64(metrics.ScheduledJobs), []string{}, 1)
 	s.Statsd.Gauge("buildkite-gcp-autoscaler.running_jobs", float64(metrics.RunningJobs), []string{}, 1)
+	s.Statsd.Gauge("buildkite-gcp-autoscaler.waiting_jobs", float64(metrics.WaitingJobs), []string{}, 1)
 
-	totalJobDemand := metrics.ScheduledJobs + metrics.RunningJobs
+	totalJobDemand := metrics.ScheduledJobs + metrics.RunningJobs + metrics.WaitingJobs
 
 	// Get current VM count
 	liveInstanceCount, err := s.gce.LiveInstanceCount(ctx, s.cfg.GCPProject, s.cfg.GCPZone, s.cfg.InstanceGroupName)
@@ -136,8 +138,8 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 	// Calculate how many instances we need based on job demand and agents per instance
 	// Round up division: (jobs + agentsPerInstance - 1) / agentsPerInstance
 	requiredInstances := (totalJobDemand + agentsPerInstance - 1) / agentsPerInstance
-	if requiredInstances < 1 {
-		requiredInstances = 1 // Always maintain at least one instance
+	if requiredInstances < s.cfg.MinInstances {
+		requiredInstances = s.cfg.MinInstances // Always maintain at least minInstances
 	}
 
 	s.logger.Debug("scaling decision",
@@ -147,10 +149,12 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 		"totalJobDemand", totalJobDemand,
 		"requiredInstances", requiredInstances,
 		"scheduled", metrics.ScheduledJobs,
-		"running", metrics.RunningJobs)
+		"running", metrics.RunningJobs,
+		"waiting", metrics.WaitingJobs,
+		"minInstances", s.cfg.MinInstances)
 
 	// Check if we have enough capacity
-	if currentAgentCapacity >= totalJobDemand && liveInstanceCount >= 1 {
+	if currentAgentCapacity >= totalJobDemand && liveInstanceCount >= s.cfg.MinInstances {
 		s.logger.Debug("no scaling needed",
 			"currentAgentCapacity", currentAgentCapacity,
 			"totalJobDemand", totalJobDemand,
@@ -161,7 +165,7 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 	// Calculate how many more instances we need
 	required := requiredInstances - liveInstanceCount
 	if required <= 0 {
-		required = 1 // Ensure at least one instance if we got here
+		required = s.cfg.MinInstances // Ensure at least minInstances if we got here
 	}
 
 	s.logger.Info("scaling up",
@@ -169,7 +173,8 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 		"currentAgentCapacity", currentAgentCapacity,
 		"required", required,
 		"totalJobDemand", totalJobDemand,
-		"agentsPerInstance", agentsPerInstance)
+		"agentsPerInstance", agentsPerInstance,
+		"minInstances", s.cfg.MinInstances)
 
 	errChan := make(chan error, required) // Buffer for all possible errors
 	wg := new(sync.WaitGroup)

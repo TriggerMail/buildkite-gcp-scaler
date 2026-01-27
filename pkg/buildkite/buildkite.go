@@ -2,7 +2,10 @@ package buildkite
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 
 	"github.com/buildkite/go-buildkite/v4"
@@ -13,6 +16,95 @@ type Client struct {
 	OrgSlug         string
 	BuildkiteClient *buildkite.Client
 	Logger          hclog.Logger
+	AgentToken      string
+}
+
+type AgentMetrics struct {
+	OrgSlug       string
+	Queue         string
+	Cluster       string
+	ScheduledJobs int64
+	RunningJobs   int64
+	WaitingJobs   int64
+	IdleAgents    int64
+	BusyAgents    int64
+	TotalAgents   int64
+}
+
+func (c *Client) GetAgentMetrics(ctx context.Context, queue string, cluster string) (*AgentMetrics, error) {
+	url := "https://agent.buildkite.com/v3/metrics"
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Token %s", c.AgentToken))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call metrics API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("metrics API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var apiResp struct {
+		Organization struct {
+			Slug string `json:"slug"`
+		} `json:"organization"`
+		Cluster struct {
+			Name string `json:"name"`
+		} `json:"cluster"`
+		Agents struct {
+			Idle   int64 `json:"idle"`
+			Busy   int64 `json:"busy"`
+			Total  int64 `json:"total"`
+			Queues map[string]struct {
+				Idle  int64 `json:"idle"`
+				Busy  int64 `json:"busy"`
+				Total int64 `json:"total"`
+			} `json:"queues"`
+		} `json:"agents"`
+		Jobs struct {
+			Scheduled int64 `json:"scheduled"`
+			Running   int64 `json:"running"`
+			Waiting   int64 `json:"waiting"`
+			Total     int64 `json:"total"`
+			Queues    map[string]struct {
+				Scheduled int64 `json:"scheduled"`
+				Running   int64 `json:"running"`
+				Waiting   int64 `json:"waiting"`
+				Total     int64 `json:"total"`
+			} `json:"queues"`
+		} `json:"jobs"`
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return nil, fmt.Errorf("failed to parse metrics response: %w", err)
+	}
+
+	// Extract queue-specific metrics
+	queueJobs := apiResp.Jobs.Queues[queue]
+	queueAgents := apiResp.Agents.Queues[queue]
+
+	return &AgentMetrics{
+		OrgSlug:       apiResp.Organization.Slug,
+		Queue:         queue,
+		Cluster:       apiResp.Cluster.Name,
+		ScheduledJobs: queueJobs.Scheduled,
+		RunningJobs:   queueJobs.Running,
+		WaitingJobs:   queueJobs.Waiting,
+		IdleAgents:    queueAgents.Idle,
+		BusyAgents:    queueAgents.Busy,
+		TotalAgents:   queueAgents.Total,
+	}, nil
 }
 
 func NewClient(org string, agentToken string, logger hclog.Logger) (*Client, error) {
@@ -25,72 +117,8 @@ func NewClient(org string, agentToken string, logger hclog.Logger) (*Client, err
 		BuildkiteClient: client,
 		Logger:          logger.Named("bkapi"),
 		OrgSlug:         org,
+		AgentToken:      agentToken,
 	}, nil
-}
-
-type AgentMetrics struct {
-	OrgSlug       string
-	Queue         string
-	Cluster       string
-	ScheduledJobs int64
-	RunningJobs   int64
-}
-
-func (c *Client) GetAgentMetrics(ctx context.Context, queue string, cluster string) (*AgentMetrics, error) {
-	c.Logger.Debug("Collecting agent metrics", "queue", queue, "cluster", cluster)
-
-	metrics := AgentMetrics{
-		OrgSlug: c.OrgSlug,
-		Queue:   queue,
-		Cluster: cluster,
-	}
-
-	// Paginate through all builds with running/scheduled state
-	opts := &buildkite.BuildsListOptions{
-		State: []string{"running", "scheduled"},
-		ListOptions: buildkite.ListOptions{
-			PerPage: 100, // Fetch more per page to reduce API calls
-		},
-	}
-
-	pageNum := 1
-	for {
-		c.Logger.Debug("fetching builds page", "page", pageNum)
-
-		builds, resp, err := c.BuildkiteClient.Builds.ListByOrg(ctx, c.OrgSlug, opts)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list builds (page %d): %w", pageNum, err)
-		}
-
-		c.Logger.Debug("processing builds", "count", len(builds), "page", pageNum)
-
-		// Process builds on this page
-		for _, build := range builds {
-			for _, job := range build.Jobs {
-				// Check if job matches the criteria
-				if c.jobMatchesCriteria(&job, queue, cluster) {
-					if job.State == "scheduled" {
-						metrics.ScheduledJobs++
-					}
-					if job.State == "running" {
-						metrics.RunningJobs++
-					}
-				}
-			}
-		}
-
-		// Check if there are more pages
-		if resp.NextPage == 0 {
-			break
-		}
-
-		// Move to next page
-		opts.Page = resp.NextPage
-		pageNum++
-	}
-
-	c.Logger.Debug("Retrieved agent metrics", "scheduled", metrics.ScheduledJobs, "running", metrics.RunningJobs, "cluster", cluster, "pages", pageNum)
-	return &metrics, nil
 }
 
 // jobMatchesCriteria checks if a job matches the queue and cluster criteria

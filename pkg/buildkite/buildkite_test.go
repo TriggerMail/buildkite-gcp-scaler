@@ -10,8 +10,9 @@ import (
 func TestJobMatchesCriteria(t *testing.T) {
 	logger := hclog.NewNullLogger()
 	client := &Client{
-		OrgSlug: "test-org",
-		Logger:  logger,
+		OrgSlug:    "test-org",
+		Logger:     logger,
+		AgentToken: "dummy-token",
 	}
 
 	tests := []struct {
@@ -178,8 +179,9 @@ func TestJobMatchesCriteria(t *testing.T) {
 func TestJobMatchesCriteria_EdgeCases(t *testing.T) {
 	logger := hclog.NewNullLogger()
 	client := &Client{
-		OrgSlug: "test-org",
-		Logger:  logger,
+		OrgSlug:    "test-org",
+		Logger:     logger,
+		AgentToken: "dummy-token",
 	}
 
 	t.Run("empty queue name", func(t *testing.T) {

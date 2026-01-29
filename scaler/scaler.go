@@ -117,9 +117,10 @@ func (s *Scaler) run(ctx context.Context, sem *chan int) error {
 
 	s.Statsd.Gauge("buildkite-gcp-autoscaler.scheduled_jobs", float64(metrics.ScheduledJobs), []string{}, 1)
 	s.Statsd.Gauge("buildkite-gcp-autoscaler.running_jobs", float64(metrics.RunningJobs), []string{}, 1)
-	s.Statsd.Gauge("buildkite-gcp-autoscaler.waiting_jobs", float64(metrics.WaitingJobs), []string{}, 1)
+	// s.Statsd.Gauge("buildkite-gcp-autoscaler.waiting_jobs", float64(metrics.WaitingJobs), []string{}, 1)
 
-	totalJobDemand := metrics.ScheduledJobs + metrics.RunningJobs + metrics.WaitingJobs
+	// Calculate total job demand (remove WaitingJobs)
+	totalJobDemand := metrics.ScheduledJobs + metrics.RunningJobs
 
 	// Get current VM count
 	liveInstanceCount, err := s.gce.LiveInstanceCount(ctx, s.cfg.GCPProject, s.cfg.GCPZone, s.cfg.InstanceGroupName)
